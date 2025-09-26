@@ -3,7 +3,7 @@
 
 # Mis Finanzas - Control de Gastos con Blazor
 
-Una aplicación web ligera de control de gastos, desarrollada con **Blazor WebAssembly**, **MudBlazor**, **Local Storage** y **ClosedXML**. Permite registrar tus gastos e ingresos, visualizar resúmenes y exportar tus datos a Excel.
+Una aplicación web ligera de control de gastos [Ver la app en vivo](https://juliosanchezs.github.io/ControlDeGastosBlazor/) 🚀, desarrollada con **Blazor WebAssembly**, **MudBlazor**, **Local Storage** y **ClosedXML**. Permite registrar tus gastos e ingresos, visualizar resúmenes y exportar tus datos a Excel.
 
 ![Dashboard](img/02.png)
 ![Movimientos](img/01.png)  
