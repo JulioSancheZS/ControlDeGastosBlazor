@@ -1,0 +1,30 @@
+﻿<MudPaper Elevation="1" Class="p-4 rounded border">
+    <MudStack Spacing="1">
+        <MudText Typo="Typo.caption" Class="text-uppercase text-muted">@Titulo</MudText>
+
+        <MudText Typo="Typo.h5" Class="font-weight-bold" Style="@ValorStyle">
+            @Valor
+        </MudText>
+
+        @if (!string.IsNullOrEmpty(Descripcion))
+        {
+            <MudText Typo="Typo.caption" Class="text-secondary">
+                @Descripcion
+            </MudText>
+        }
+
+        @if (Icon != null)
+        {
+            <MudIcon Icon="@Icon" Color="@IconColor" Size="Size.Medium" />
+        }
+    </MudStack>
+</MudPaper>
+
+@code {
+    [Parameter] public string Titulo { get; set; }
+    [Parameter] public string Valor { get; set; }
+    [Parameter] public string Descripcion { get; set; }
+    [Parameter] public string Icon { get; set; }
+    [Parameter] public Color IconColor { get; set; } = Color.Default;
+    [Parameter] public string ValorStyle { get; set; } = "";
+}

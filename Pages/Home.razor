@@ -1,0 +1,243 @@
+﻿@page "/"
+@using BlazorWallet.Model
+@using BlazorWallet.Pages.Components
+@using BlazorWallet.Service
+@using BlazorWallet.Services
+@using System.Globalization
+@inject CategoriaService CategoriaService
+@inject MovimientoService MovimientoService
+<PageTitle>Dashboard</PageTitle>
+
+
+<MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="mt-4">
+    <MudGrid GutterSize="3">
+        <MudItem xs="12" sm="6" md="3">
+            <MetricCard Titulo="Ingresos vs Gastos"
+                        Valor=@($"C${TotalIngresos:N0} - C${TotalGastos:N0}")
+                        Descripcion="@DescripcionCoberturaGastos"
+                        Icon="@Icons.Material.Filled.TrendingUp"
+                        IconColor="Color.Success" />
+        </MudItem>
+
+        <MudItem xs="12" sm="6" md="3">
+            <MetricCard Titulo="Ahorro Total"
+                        Valor=@($"C${TotalAhorro:N0}")
+                        Descripcion="@DescripcionAhorro"
+                        Icon="@Icons.Material.Filled.Savings"
+                        IconColor="Color.Primary" />
+        </MudItem>
+
+        <MudItem xs="12" sm="6" md="3">
+            <MetricCard Titulo="Eficiencia de Gastos"
+                        Valor=@($"{eficiencia:N0}%")
+                        Descripcion="@DescripcionEficiencia"
+                        Icon="@Icons.Material.Filled.EmojiEvents"
+                        IconColor="Color.Info" />
+        </MudItem>
+
+    </MudGrid>
+
+    <MudGrid GutterSize="3" Class="mt-4">
+        <MudItem xs="6">
+            <MudPaper Class="p-4">
+                <MudText Typo="Typo.h6" Class="mb-2">Ingresos vs Gastos por Mes</MudText>
+
+                @if (IsLoading)
+                {
+                    <MudProgressCircular Indeterminate="true" />
+                }
+                else if (Series.Any())
+                {
+                    <MudChart ChartType="ChartType.Bar"
+                              ChartSeries="@Series"
+                              XAxisLabels="@XAxisLabels"
+                              Width="100%"
+                              Height="350px" />
+                }
+                else
+                {
+                    <MudText>No hay datos disponibles.</MudText>
+                }
+            </MudPaper>
+        </MudItem>
+        <MudItem xs="6">
+            <MudPaper Class="p-4">
+                <MudText Typo="Typo.h6" Align="Align.Center">Movimientos por Tipo</MudText>
+                <MudChart ChartType="ChartType.Donut"
+                          Width="300px"
+                          Height="350px"
+                          InputData="@Data"
+                          InputLabels="@Labels">
+                </MudChart>
+            </MudPaper>
+        </MudItem>
+    </MudGrid>
+</MudContainer>
+
+
+
+@code{
+    private List<Movimiento> movimientos = new List<Movimiento>();
+    private DateTime fechaActual = DateTime.Now;
+
+    protected override async Task OnInitializedAsync()
+    {
+        IsLoading = true;
+
+         movimientos = await MovimientoService.ListarMovimientosAsync();
+
+        // Agrupamos por mes del año actual
+        var meses = Enumerable.Range(1, 12).ToList();
+        var labels = meses.Select(m => CultureInfo.CurrentCulture.DateTimeFormat.GetAbbreviatedMonthName(m)).ToArray();
+
+        double[] ingresosPorMes = new double[12];
+        double[] gastosPorMes = new double[12];
+
+        foreach (var mov in movimientos.Where(m => m.FechaMovimiento.HasValue && m.FechaMovimiento.Value.Year == DateTime.Now.Year))
+        {
+            var mes = mov.FechaMovimiento!.Value.Month - 1;
+
+            if (mov.IdTipoMovimiento == TipoIngresoId)
+                ingresosPorMes[mes] += (double)mov.Monto;
+            else if (mov.IdTipoMovimiento == TipoGastoId)
+                gastosPorMes[mes] += (double)mov.Monto;
+        }
+
+        Series = new List<ChartSeries>
+        {
+            new ChartSeries { Name = "Ingresos", Data = ingresosPorMes },
+            new ChartSeries { Name = "Gastos", Data = gastosPorMes }
+        };
+
+        XAxisLabels = labels;
+        IsLoading = false;
+
+        var agrupados = movimientos
+            .GroupBy(m => m.IdTipoMovimiento)
+            .Select(g => new
+            {
+                Tipo = TipoNombres.ContainsKey(g.Key) ? TipoNombres[g.Key] : "Otro",
+                Total = g.Sum(x => x.Monto)
+            })
+            .ToList();
+
+        Labels = agrupados.Select(x => x.Tipo).ToArray();
+        Data = agrupados.Select(x => (double)x.Total).ToArray();
+
+      
+    }
+
+    private Guid IngresoGuid = Guid.Parse("295e8598-03fb-48ab-96ba-4a573eb96bbe");
+    private Guid GastoGuid = Guid.Parse("fdf07f70-9e07-41dc-9c72-ae8ce294859b");
+    private Guid AhorroGuid = Guid.Parse("c9f07564-f022-4a5c-a804-2a56c30347cd");
+
+
+    private decimal TotalIngresos => movimientos
+    .Where(m => m.IdTipoMovimiento == IngresoGuid)
+    .Sum(m => m.Monto);
+
+    private decimal TotalGastos => movimientos
+        .Where(m => m.IdTipoMovimiento == GastoGuid)
+        .Sum(m => m.Monto);
+
+    private decimal TotalAhorro => movimientos
+   .Where(m => m.IdTipoMovimiento == AhorroGuid)
+   .Sum(m => m.Monto);
+
+    private string DescripcionCoberturaGastos
+    {
+        get
+        {
+            if (TotalGastos == 0)
+                return "Sin gastos registrados";
+
+            if (TotalIngresos == 0)
+                return "Sin ingresos registrados";
+
+            var porcentaje = (TotalIngresos / TotalGastos) * 100;
+
+            if (porcentaje >= 100)
+            {
+                var excedente = porcentaje - 100;
+                return $"Ingresos superan gastos en {excedente:F1}%";
+            }
+            else
+            {
+                var deficit = 100 - porcentaje;
+                return $"Estás en déficit de {deficit:F1}%";
+            }
+        }
+    }
+
+    private string DescripcionAhorro
+    {
+        get
+        {
+            if (TotalIngresos == 0)
+                return "Sin ingresos registrados";
+
+            var porcentaje = (TotalAhorro / TotalIngresos) * 100;
+
+            if (porcentaje >= 20)
+                return $"Excelente ahorro ({porcentaje:N1}% de ingresos)";
+            else if (porcentaje >= 10)
+                return $"Buen ahorro ({porcentaje:N1}% de ingresos)";
+            else
+                return $"Tu ahorro es bajo ({porcentaje:N1}% de ingresos)";
+        }
+    }
+
+    private int diasEnElMes => DateTime.DaysInMonth(fechaActual.Year, fechaActual.Month);
+
+    private decimal eficiencia => TotalIngresos == 0 ? 0 : (TotalGastos / TotalIngresos) * 100;
+
+    private decimal cobertura
+    {
+        get
+        {
+            var gastoDiario = TotalGastos / diasEnElMes;
+            var ingresoDiario = TotalIngresos / diasEnElMes;
+
+            if (gastoDiario == 0) return 999; // cobertura infinita
+            return ingresoDiario / gastoDiario;
+        }
+    }
+
+    private string DescripcionEficiencia
+    {
+        get
+        {
+            if (TotalIngresos == 0 && TotalGastos == 0)
+                return "Sin datos este mes.";
+
+            if (eficiencia < 70)
+                return $"Excelente eficiencia ({cobertura:N1}x cobertura)";
+            else if (eficiencia <= 100)
+                return $"Gasto controlado ({cobertura:N1}x cobertura)";
+            else
+                return $"Estás gastando más de lo que ganas ({cobertura:N1}x cobertura)";
+        }
+    }
+
+    //GRAFICOS
+    public List<ChartSeries> Series = new();
+    public string[] XAxisLabels = Array.Empty<string>();
+    public bool IsLoading { get; set; } = true;
+
+    private string MesActual => DateTime.Now.ToString("yyyy-MM");
+
+    private Guid TipoIngresoId = new Guid("295e8598-03fb-48ab-96ba-4a573eb96bbe");
+    private Guid TipoGastoId = new Guid("fdf07f70-9e07-41dc-9c72-ae8ce294859b");
+
+    private double[] Data = Array.Empty<double>();
+    private string[] Labels = Array.Empty<string>();
+
+    // Diccionario para traducir Guid -> Nombre amigable
+    private Dictionary<Guid, string> TipoNombres = new()
+    {
+        { Guid.Parse("295e8598-03fb-48ab-96ba-4a573eb96bbe"), "Ingreso" },
+        { Guid.Parse("fdf07f70-9e07-41dc-9c72-ae8ce294859b"), "Gasto" },
+        { Guid.Parse("c9f07564-f022-4a5c-a804-2a56c30347cd"), "Ahorro" }
+    };
+
+}

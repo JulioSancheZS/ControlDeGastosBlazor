@@ -1,0 +1,49 @@
+﻿@page "/settings"
+@using Blazored.LocalStorage
+@inject ILocalStorageService localStorage
+@inject ISnackbar _snackBar
+@inject IDialogService _dialogServicio
+
+<MudContainer Class="mt-16 px-8" MaxWidth="MaxWidth.False">
+    <MudStack Row="true" Spacing="1">
+        <MudIcon Icon="@Icons.Material.Filled.Settings" Color="Color.Default" />
+        <MudText Typo="Typo.h5" GutterBottom="true">Configuración</MudText>
+    </MudStack>
+
+    <MudPaper Elevation="3" Class="pa-4" Width="100%">
+        <MudText Typo="Typo.h6">Gestión de Datos</MudText>
+        <MudText Typo="Typo.subtitle1">Administra los datos de tu cuenta</MudText>
+
+        <MudText Typo="Typo.h5">Reiniciar Plataforma</MudText>
+        <MudText Typo="Typo.subtitle1">
+            Elimina todos los datos creados para comenzar desde cero. Esta acción no se puede deshacer.
+        </MudText>
+        
+        <MudButton 
+            Color="Color.Error" 
+            StartIcon="@Icons.Material.Filled.Delete"
+            OnClick="ResetMovimientos"
+            Variant="Variant.Filled">
+            Reiniciar Datos
+        </MudButton>
+    </MudPaper>
+</MudContainer>
+@code {
+   
+    private const string StorageKeyMovimiento = "movimiento";
+
+    private async Task ResetMovimientos()
+    {
+        bool? confirmado = await _dialogServicio.ShowMessageBox(
+            "Confirmar eliminación",
+            "¿Estás seguro de que deseas eliminar todo tu información? Esta acción no se puede deshacer.",
+            yesText: "Sí", cancelText: "Cancelar");
+
+        if (confirmado == true)
+        {
+            await localStorage.RemoveItemAsync(StorageKeyMovimiento);
+            _snackBar.Add("LocalStorage eliminado correctamente.", Severity.Success);
+        }
+    }
+
+}

@@ -1,0 +1,116 @@
+﻿@inherits LayoutComponentBase
+@inject IJSRuntime JS
+@using BlazorWallet.Model
+@using BlazorWallet.Service
+@using BlazorWallet.Services
+@using ClosedXML.Excel;
+@inject CategoriaService CategoriaService
+@inject MovimientoService MovimientoService
+
+@* Required *@
+<MudThemeProvider @bind-IsDarkMode="@_isDarkMode" Theme="_theme" />
+<MudPopoverProvider />
+
+@* Needed for dialogs *@
+<MudDialogProvider />
+
+@* Needed for snackbars *@
+<MudSnackbarProvider />
+
+<MudLayout>
+    <MudAppBar Elevation="1" Class="px-4">
+        <!-- Menú hamburguesa -->
+        <MudIconButton Icon="@Icons.Material.Filled.Menu"
+                       Color="Color.Inherit"
+                       Edge="Edge.Start"
+                       OnClick="@DrawerToggle" />
+
+        <MudSpacer />
+
+        <!-- Modo oscuro -->
+        <MudIconButton Icon="@Icons.Material.Filled.FileDownload"
+                       Color="Color.Inherit"
+                       Edge="Edge.End" 
+                       OnClick="ExportarExcel" />
+
+        <MudIconButton Icon="@(_isDarkMode? Icons.Material.Filled.LightMode : Icons.Material.Filled.DarkMode)"
+                       Color="Color.Inherit"
+                       OnClick="@ToggleDarkMode" />
+
+
+    </MudAppBar>
+
+    <MudDrawer @bind-Open="_drawerOpen" Elevation="2">
+        <MudDrawerHeader Class="d-flex align-items-center px-4 py-4">
+            <MudImage Src="logo.png"
+                      Elevation="25"
+                      Width="50"
+                      Height="50"
+                      Class="me-3" />
+            <div>
+                <MudText Typo="Typo.subtitle1">Tus Finanzas</MudText>
+            </div>
+        </MudDrawerHeader>
+        <NavMenu />
+    </MudDrawer>
+    <MudMainContent>
+        @Body
+    </MudMainContent>
+</MudLayout>
+
+@code {
+    bool _drawerOpen = true;
+
+    private MudTheme _theme = new();
+    private bool _isDarkMode = false;
+
+    void DrawerToggle()
+    {
+        _drawerOpen = !_drawerOpen;
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        var storedValue = await JS.InvokeAsync<string>("localStorage.getItem", "darkMode");
+
+        if (!string.IsNullOrEmpty(storedValue) && bool.TryParse(storedValue, out var result))
+        {
+            _isDarkMode = result;
+        }
+    }
+
+    private async void ToggleDarkMode()
+    {
+        _isDarkMode = !_isDarkMode;
+        await JS.InvokeVoidAsync("localStorage.setItem", "darkMode", _isDarkMode.ToString().ToLower());
+    }
+
+    private List<Movimiento> movimientos = new();
+    private List<TipoMovimiento> tipos = new();
+    private List<Frecuencia> frecuencias = new();
+    private async Task ExportarExcel()
+    {
+        try
+        {
+            // Cargar datos si aún no los tenés
+            movimientos = await MovimientoService.ListarMovimientosAsync();
+            tipos = await CategoriaService.GetTipoMovimientos();
+            frecuencias = await CategoriaService.GetFrecuencia();
+
+            // Generar archivo
+            var excelBytes = await MovimientoService.GenerarExcelMovimientosAsync(movimientos, tipos, frecuencias);
+
+            var nombre = $"Movimientos {DateTime.Now:yyyy-MM-dd}.xlsx";
+            var base64 = Convert.ToBase64String(excelBytes);
+
+            // Llamar JavaScript para descargarlo
+            await JS.InvokeVoidAsync("DescargarExcel", nombre, base64);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error al exportar a Excel: {ex.Message}");
+        }
+     
+    }
+
+}

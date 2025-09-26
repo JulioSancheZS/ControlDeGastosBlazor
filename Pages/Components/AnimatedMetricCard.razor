@@ -1,0 +1,42 @@
+﻿<MudPaper Elevation="1" Class="p-4 rounded border">
+    <MudStack Direction="Row" AlignItems="AlignItems.Center" Spacing="1">
+        <MudIcon Icon="@Icon" Color="@IconColor" />
+        <MudText Typo="Typo.h5" Class="font-weight-bold" Color="@IconColor">
+            C$ @valorAnimado.ToString("N2")
+        </MudText>
+    </MudStack>
+    <MudText Typo="Typo.subtitle2">@Titulo</MudText>
+</MudPaper>
+
+@code {
+    [Parameter] public string Titulo { get; set; } = string.Empty;
+    [Parameter] public decimal Valor { get; set; }
+    [Parameter] public string Icon { get; set; } = string.Empty;
+    [Parameter] public Color IconColor { get; set; } = Color.Default;
+
+    private decimal valorAnimado;
+
+    protected override void OnParametersSet()
+    {
+        // Esto se llama cada vez que el componente recibe nuevos parámetros
+        if (valorAnimado != Valor)
+        {
+            _ = AnimarValor();
+        }
+    }
+
+    private async Task AnimarValor()
+    {
+        decimal inicial = valorAnimado;
+        decimal final = Valor;
+        int pasos = 20;
+        for (int i = 1; i <= pasos; i++)
+        {
+            valorAnimado = inicial + (final - inicial) * i / pasos;
+            StateHasChanged(); // fuerza el renderizado
+            await Task.Delay(15); // ajusta para más o menos suavidad
+        }
+        valorAnimado = final; // asegura que termina en el valor correcto
+        StateHasChanged();
+    }
+}

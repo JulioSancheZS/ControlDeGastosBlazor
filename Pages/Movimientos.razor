@@ -1,0 +1,330 @@
+﻿@page "/movimientos"
+@using BlazorWallet.Model
+@using BlazorWallet.Pages.Components
+@using BlazorWallet.Pages.Modal
+@using BlazorWallet.Service
+@using BlazorWallet.Services
+@inject IDialogService _dialogServicio
+@inject ISnackbar _snackBar
+@inject CategoriaService CategoriaService
+@inject MovimientoService MovimientoService
+@inject IJSRuntime JS
+
+<MudContainer Class="mt-16 px-2 px-sm-6 px-md-8" MaxWidth="MaxWidth.False">
+    <MudStack Row="true" Spacing="1">
+        <MudIcon Icon="@Icons.Material.Filled.ShowChart" Color="Color.Primary" />
+        <MudText Typo="Typo.h5" GutterBottom="true">Movimientos</MudText>
+    </MudStack>
+
+    <MudPaper Elevation="3" Class="pa-4" Width="100%">
+  
+
+        <MudStack Direction="Row" Spacing="2" Class="my-2" Row="true" Wrap="Wrap.Wrap">
+            <MudButton OnClick="AbrirNuevoGastos"
+                       Variant="Variant.Filled"
+                       Color="Color.Primary"
+                       StartIcon="@Icons.Material.Filled.Add">
+                Nuevo Movimiento
+            </MudButton>
+
+            <MudButton Variant="Variant.Filled"
+                       Color="Color.Success"
+                       StartIcon="@Icons.Material.Filled.FileDownload"
+                       OnClick="ExportarExcel">
+                Exportar Datos
+            </MudButton>
+        </MudStack>
+
+        <MudGrid GutterSize="3" Class="mt-2">
+            <MudItem xs="12" sm="6" md="3">
+                <AnimatedMetricCard Titulo="Total Ingresos"
+                                    Valor="@TotalIngresos"
+                                    Icon="@Icons.Material.Filled.AttachMoney"
+                                    IconColor="Color.Success" />
+            </MudItem>
+
+            <MudItem xs="12" sm="6" md="3">
+                <AnimatedMetricCard Titulo="Total Gastos"
+                                    Valor="@TotalGastos"
+                                    Icon="@Icons.Material.Filled.MoneyOff"
+                                    IconColor="Color.Error" />
+            </MudItem>
+            <MudItem xs="12" sm="6" md="3">
+                <AnimatedMetricCard Titulo="Balance Neto"
+                                    Valor="@BalanceNeto"
+                                    Icon="@Icons.Material.Filled.AccountBalance"
+                                    IconColor="Color.Primary" />
+            </MudItem>
+            <MudItem xs="12" sm="6" md="3">
+                <AnimatedMetricCard Titulo="Ahorro"
+                                    Valor="@TotalAhorro"
+                                    Icon="@Icons.Material.Filled.Savings"
+                                    IconColor="Color.Tertiary" />
+            </MudItem>
+       
+        </MudGrid>
+
+        <MudText Typo="Typo.h4" Class="mt-4 mb-2">Lista de Movimientos</MudText>
+
+        <div class="d-flex justify-center align-items-center mb-4">
+             <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="RetrocederUnCiclo">
+                <MudIcon Icon="@Icons.Material.Filled.KeyboardArrowLeft" />
+            </MudButton>
+
+            <MudButton Variant="Variant.Outlined" Disabled="true" Style="min-width: 200px;">
+                @NombreCiclo
+            </MudButton>
+
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="AvanzarUnCiclo">
+                <MudIcon Icon="@Icons.Material.Filled.KeyboardArrowRight" />
+            </MudButton>
+        </div>
+
+        <div style="overflow-x:auto;">
+            <MudDataGrid Items="@movimientos"
+                         Filterable="true"
+                         Bordered="true"
+                         Hover="true">
+
+                <Columns>
+                    <PropertyColumn Property="x => x.NombreMovimiento" Title="Movimiento" />
+                    <TemplateColumn Title="Monto">
+                        <CellTemplate Context="context">
+                            C$ @string.Format("{0:N2}", context.Item.Monto)
+                        </CellTemplate>
+                    </TemplateColumn>
+                    <PropertyColumn Property="x => x.FechaMovimiento" Title="Fecha" Format="dd/MM/yyyy" />
+
+                    <TemplateColumn Title="Tipo">
+                        <CellTemplate Context="context">
+                            @tipoMovimiento.FirstOrDefault(x => x.IdTipoMovimiento == context.Item.IdTipoMovimiento)?.Nombre
+                        </CellTemplate>
+                    </TemplateColumn>
+
+                    <TemplateColumn Title="Frecuencia">
+                        <CellTemplate Context="context">
+                            @frecuencias.FirstOrDefault(x => x.IdFrecuencia == context.Item.IdFrecuencia)?.Nombre
+                        </CellTemplate>
+                    </TemplateColumn>
+
+                    <TemplateColumn Title="¿Es fijo?">
+                        <CellTemplate Context="context">
+                            @if (context.Item.EsFijo)
+                            {
+                                <MudChip Color="Color.Success" Variant="Variant.Outlined">Si</MudChip>
+                            }
+                            else
+                            {
+                                <MudChip Color="Color.Error" Variant="Variant.Outlined">No</MudChip>
+                            }
+                        </CellTemplate>
+                    </TemplateColumn>
+
+                    <TemplateColumn Title="Acciones" CellClass="d-flex justify-end">
+                        <CellTemplate Context="context">
+                            <MudButton Color="Color.Primary" Variant="Variant.Text" Size="Size.Small" OnClick="@(() => EditarModal(context.Item))">
+                                <MudIcon Icon="@Icons.Material.Filled.Edit" />
+                            </MudButton>
+                            <MudButton Color="Color.Error" Variant="Variant.Text" Size="Size.Small" OnClick="@(() => Eliminar(context.Item))">
+                                <MudIcon Icon="@Icons.Material.Filled.Delete" />
+                            </MudButton>
+                        </CellTemplate>
+                    </TemplateColumn>
+                </Columns>
+            </MudDataGrid>
+        </div>
+    </MudPaper>
+</MudContainer>
+@code {
+    private bool _loading = true;
+
+    private List<Movimiento> movimientos = new();
+    private List<TipoMovimiento> tipoMovimiento = new();
+    private List<Frecuencia> frecuencias = new();
+
+    private DateTime fechaActual = DateTime.Today;
+
+    protected override async Task OnInitializedAsync()
+    {
+        tipoMovimiento = await CategoriaService.GetTipoMovimientos();
+        frecuencias = await CategoriaService.GetFrecuencia();
+        //movimientos = await MovimientoService.ListarPorMesAsync(fechaActual);
+        await CargarMovimientosPorCiclo();
+        // Ordenar por fecha descendente
+        movimientos = movimientos.OrderByDescending(m => m.FechaMovimiento).ToList();
+    }
+
+    private async Task CargarMovimientosPorCiclo()
+    {
+        movimientos = await MovimientoService.ListarPorCicloAsync(fechaActual);
+        StateHasChanged();
+    }
+
+    private async Task AbrirNuevoGastos()
+    {
+        var options = new DialogOptions
+        {
+            MaxWidth = MaxWidth.Small,
+            FullWidth = true,
+            FullScreen = await JS.InvokeAsync<bool>("esMobil") // <-- JS
+        };
+
+        var dialogo = await _dialogServicio.ShowAsync<ModalMovimientos>("Nuevo del Movimiento", options);
+
+        var resultado = await dialogo.Result;
+
+        if (!resultado.Canceled)
+        {
+            Console.WriteLine("Se actualizará la lista de gastos");
+            //movimientos = await MovimientoService.ListarMovimientosAsync();
+            movimientos = await MovimientoService.ListarPorMesAsync(fechaActual);
+        }
+    }
+
+    private async Task EditarModal(Movimiento movimiento)
+    {
+        try
+        {
+            var parametros = new DialogParameters { ["_movimiento"] = movimiento };
+
+            var dialogo = _dialogServicio.Show<ModalMovimientos>("Editar Movimiento", parametros);
+            var resultado = await dialogo.Result;
+
+            if (!resultado.Canceled)
+            {
+                await CargarMovimientosPorCiclo();
+            }
+        }
+        catch (Exception ex)
+        {
+
+            throw;
+        }
+    }
+
+    private async Task Eliminar(Movimiento movimiento)
+    {
+        bool? confirmado = await _dialogServicio.ShowMessageBox(
+            "Confirmar eliminación",
+            $"¿Estás seguro de que deseas eliminar el movimiento \"{movimiento.NombreMovimiento}\"?",
+            yesText: "Sí", cancelText: "Cancelar");
+
+        if (confirmado == true)
+        {
+            await MovimientoService.EliminarMovimientoAsync(movimiento.IdMovimiento);
+            await CargarMovimientosPorCiclo();
+
+            _snackBar.Add("Movimiento eliminado correctamente.", Severity.Success);
+        }
+    }
+
+
+    private string GetRowStyle(Movimiento movimiento)
+    {
+        var tipo = tipoMovimiento.FirstOrDefault(x => x.IdTipoMovimiento == movimiento.IdTipoMovimiento)?.Nombre;
+
+        return tipo switch
+        {
+            "Gasto" => "background-color: #ffe5e5;",
+            "Ingreso" => "background-color: #e5ffe5;",
+            "Ahorro" => "background-color: #e5f3ff;",
+            _ => ""
+        };
+    }
+
+
+    private int Anio => fechaActual.Year;
+    private string NombreMes => fechaActual.ToString("MMMM", new System.Globalization.CultureInfo("es-ES"));
+
+    private async Task RetrocederUnCiclo()
+    {
+        if (fechaActual.Day >= 15)
+        {
+            // Si estoy en segunda quincena → voy a la primera del mismo mes
+            fechaActual = new DateTime(fechaActual.Year, fechaActual.Month, 1);
+        }
+        else
+        {
+            // Si estoy en la primera quincena → voy a la segunda del mes anterior
+            var mesAnterior = fechaActual.AddMonths(-1);
+            fechaActual = new DateTime(mesAnterior.Year, mesAnterior.Month, 15);
+        }
+
+        await CargarMovimientosPorCiclo();
+    }
+
+    private async Task AvanzarUnCiclo()
+    {
+        if (fechaActual.Day < 15)
+        {
+            fechaActual = new DateTime(fechaActual.Year, fechaActual.Month, 15);
+        }
+        else
+        {
+            var mesSiguiente = fechaActual.AddMonths(1);
+            fechaActual = new DateTime(mesSiguiente.Year, mesSiguiente.Month, 1);
+        }
+
+        await CargarMovimientosPorCiclo();
+    }
+    // private async Task RetrocederUnMes()
+    // {
+    //     fechaActual = fechaActual.AddMonths(-1);
+    //     await CargarMovimientosPorMes();
+    // }
+
+    // private async Task AvanzarUnMes()
+    // {
+    //     fechaActual = fechaActual.AddMonths(1);
+    //     await CargarMovimientosPorMes();
+    // }
+
+    //Mostrar Datos
+    private decimal TotalIngresos => movimientos
+      .Where(m => tipoMovimiento.FirstOrDefault(t => t.IdTipoMovimiento == m.IdTipoMovimiento)?.Nombre == "Ingreso")
+      .Sum(m => m.Monto);
+
+    private decimal TotalGastos => movimientos
+        .Where(m => tipoMovimiento.FirstOrDefault(t => t.IdTipoMovimiento == m.IdTipoMovimiento)?.Nombre == "Gasto")
+        .Sum(m => m.Monto);
+
+    private decimal TotalAhorro => movimientos
+        .Where(m => tipoMovimiento.FirstOrDefault(t => t.IdTipoMovimiento == m.IdTipoMovimiento)?.Nombre == "Ahorro")
+        .Sum(m => m.Monto);
+
+    private decimal BalanceNeto => TotalIngresos - TotalGastos - TotalAhorro;
+
+
+    private List<TipoMovimiento> tipos = new();
+    private async Task ExportarExcel()
+    {
+        try
+        {
+            movimientos = await MovimientoService.ListarMovimientosAsync();
+            tipos = await CategoriaService.GetTipoMovimientos();
+            frecuencias = await CategoriaService.GetFrecuencia();
+
+            var excelBytes = await MovimientoService.GenerarExcelMovimientosAsync(movimientos, tipos, frecuencias);
+
+            var nombre = $"Movimientos {DateTime.Now:yyyy-MM-dd}.xlsx";
+            var base64 = Convert.ToBase64String(excelBytes);
+
+            await JS.InvokeVoidAsync("DescargarExcel", nombre, base64);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error al exportar a Excel: {ex.Message}");
+        }
+
+    }
+
+    private string NombreCiclo
+    {
+        get
+        {
+            var (inicio, fin) = MovimientoService.ObtenerCiclo(fechaActual);
+            return $"{inicio:dd MMM} - {fin:dd MMM}";
+        }
+    }
+
+}

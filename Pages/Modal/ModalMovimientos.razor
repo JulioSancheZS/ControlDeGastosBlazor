@@ -1,0 +1,176 @@
+﻿@using BlazorWallet.Model
+@using BlazorWallet.Service
+@using BlazorWallet.Services
+@inject ISnackbar _snackBar
+@inject CategoriaService CategoriaService
+@inject MovimientoService MovimientoService
+
+<MudDialog Style="width: 600px;">
+    <DialogContent>
+        <MudContainer Style="max-height: 600px; overflow-y: auto;" Class="m-0 p-0">
+            <MudText Typo="Typo.body2" Class="mb-4">Agrega un nuevo ingreso o gasto a tu presupuesto</MudText>
+            <MudPaper Class="pa-4" Style="overflow: visible;">
+                <EditForm Model="_movimiento" OnValidSubmit="SubmitGuardarMovimiento" FormName="frmMovimiento">
+                    <DataAnnotationsValidator />
+                    <ValidationSummary />
+                    <div class="row">
+                        <div class="col-md-6">
+                            <MudTextField Label="Nombre del Movimiento"
+                                          Placeholder="Ej: Salario, Alquiler, Servicios"
+                                          Variant="Variant.Outlined"
+                                          Class="mb-3"
+                                          @bind-Value="_movimiento.NombreMovimiento" />
+
+
+
+                        </div>
+                        <div class="col-md-6">
+                            <MudNumericField Label="Monto (C$)"
+                                             Variant="Variant.Outlined"
+                                             Placeholder="0.00"
+                                             Class="mb-3"
+                                             @bind-Value="_movimiento.Monto"
+                                             Adornment="Adornment.End"
+                                             AdornmentText="C$" />
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-12">
+                            <MudSelect T="Guid"
+                                       Label="Tipo de Movimiento"
+                                       Variant="Variant.Outlined"
+                                       Class="mb-3"
+                                       HelperText="Seleccione el tipo movimiento"
+                                       Placeholder="Seleccione una opción"
+                                       @bind-Value="_movimiento.IdTipoMovimiento"
+                                       ToStringFunc="@(guid => ListaTipoMovimiento.FirstOrDefault(x => x.IdTipoMovimiento == guid)?.Nombre ?? string.Empty)">
+
+                                @foreach (var item in ListaTipoMovimiento)
+                                {
+                                    <MudSelectItem T="Guid" Value="@item.IdTipoMovimiento">@item.Nombre</MudSelectItem>
+                                }
+                            </MudSelect>
+                        </div>
+                    </div>
+                    <div class=row>
+                        <div class="col-md-6">
+                            <MudSelect T="Guid" Label="Frecuencia"
+                                       Variant="Variant.Outlined"
+                                       Class="mb-3"
+                                       HelperText="Seleccione la frecuencia"
+                                       Placeholder="Seleccione una opción"
+                                       @bind-Value="_movimiento.IdFrecuencia"
+                                       ToStringFunc="@(guid => ListaFrecuencia.FirstOrDefault(x => x.IdFrecuencia == guid)?.Nombre ?? string.Empty)">
+
+                                @foreach (var item in ListaFrecuencia)
+                                {
+                                    <MudSelectItem Value="@item.IdFrecuencia">@item.Nombre</MudSelectItem>
+                                }
+                            </MudSelect>
+                        </div>
+                        <div class="col-md-6">
+                            <MudDatePicker @bind-Date="_movimiento.FechaMovimiento"
+                                           Label="Fecha Movimiento"
+                                           Variant="Variant.Outlined"
+                                           Class="mb-3" />
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6">
+                            <MudCheckBox @bind-value="_movimiento.EsFijo" Label="¿Es un movimiento fijo?" />
+                        </div>
+
+                        @if (_movimiento.EsFijo)
+                        {
+                            <div class="col-md-6">
+                                <MudDatePicker Label="Fecha de Inicio"
+                                               @bind-Date="_movimiento.FechaInicio"
+                                               Variant="Variant.Outlined"
+                                               Class="mb-3" />
+                            </div>
+                        }
+                    </div>
+
+
+                </EditForm>
+            </MudPaper>
+         
+
+        </MudContainer>
+    </DialogContent>
+
+    <DialogActions>
+        <MudButton Variant="Variant.Filled" Color="Color.Default" OnClick="Cancelar">Cancelar</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SubmitGuardarMovimiento">Agregar Movimiento</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; }
+    [Parameter] public Movimiento _movimiento { get; set; } = new Movimiento();
+
+
+    private List<TipoMovimiento> ListaTipoMovimiento = new();
+    private List<Frecuencia> ListaFrecuencia = new();
+
+    private TipoMovimiento tipoMovimientoSeleccionado;
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            ListaTipoMovimiento = await CategoriaService.GetTipoMovimientos();
+            ListaFrecuencia = await CategoriaService.GetFrecuencia();
+
+            if (_movimiento.IdTipoMovimiento == Guid.Empty && ListaTipoMovimiento.Any())
+            {
+                _movimiento.IdTipoMovimiento = ListaTipoMovimiento.First().IdTipoMovimiento;
+            }
+
+            if (_movimiento.IdFrecuencia == Guid.Empty && ListaFrecuencia.Any())
+            {
+                _movimiento.IdFrecuencia = ListaFrecuencia.First().IdFrecuencia;
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine("error " + ex.Message);
+            throw;
+        }
+
+    }
+
+    private void Cancelar() => MudDialog.Cancel();
+
+    private async Task SubmitGuardarMovimiento()
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(_movimiento.NombreMovimiento) || _movimiento.Monto <= 0)
+            {
+                _snackBar.Add("Por favor completa todos los campos obligatorios.", Severity.Warning);
+                return;
+            }
+
+            if (_movimiento.IdMovimiento == Guid.Empty)
+            {
+                await MovimientoService.GuardarMovimientoAsync(_movimiento);
+                _snackBar.Add("Se ha Guardado correctamente", Severity.Success);
+
+            }
+            else
+            {
+                await MovimientoService.EditarMovimientoAsync(_movimiento);
+                _snackBar.Add("Se ha actualizado correctamente", Severity.Success);
+            }
+
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+        catch (Exception ex)
+        {
+            _snackBar.Add("Error: ", Severity.Error);
+        }
+       
+    }
+}

@@ -1,0 +1,29 @@
+﻿<MudNavMenu Dense="true">
+
+    <MudNavLink Href="/" Match="NavLinkMatch.All" Icon="@Icons.Material.Filled.Dashboard">
+        Dashboard
+    </MudNavLink>
+
+    <MudDivider Class="my-2" />
+
+    <MudText Typo="Typo.caption" Class="px-4 mt-4 mud-text-secondary">FINANSAS</MudText>
+    <MudNavLink Href="/movimientos" Icon="@Icons.Material.Filled.TrendingUp">Movimientos</MudNavLink>
+    @* <MudText Typo="Typo.caption" Class="px-4 mt-4 mud-text-secondary">METAS</MudText>
+    <MudNavLink Href="/presupuesto" Icon="@Icons.Material.Filled.AttachMoney">Presupuestos</MudNavLink>
+    <MudNavLink Href="/metas" Icon="@Icons.Material.Filled.Diamond">Metas</MudNavLink> *@
+
+    <MudText Typo="Typo.caption" Class="px-4 mt-4 mud-text-secondary">SOPORTE</MudText>
+    <MudNavLink Href="/settings" Icon="@Icons.Material.Filled.SettingsApplications">Configuración</MudNavLink>
+</MudNavMenu>
+
+
+@code {
+    private bool collapseNavMenu = true;
+
+    private string? NavMenuCssClass => collapseNavMenu ? "collapse" : null;
+
+    private void ToggleNavMenu()
+    {
+        collapseNavMenu = !collapseNavMenu;
+    }
+}
